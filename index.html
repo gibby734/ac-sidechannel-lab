@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AC & Side-Channel Lab</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3f5f8; --panel: #ffffff; --panel-2: #eef1f5; --text: #1a1f26; --muted: #5a6572;
+    --border: #d5dbe3; --accent: #1d4ed8; --accent-fg: #ffffff; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+    --code: #0f172a; --code-bg: #eef1f5;
+    --benign: #0f9d6e; --malicious: #d93025;
+    --arrow: #64748b; --arrow-static: #d97706; --arrow-cycle: #dc2626;
+    --shape: #cbd5e1; --shape-stroke: #475569; --current: #fbbf24; --visited: #93c5fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116; --panel: #161b22; --panel-2: #1f2630; --text: #e6e9ee; --muted: #9aa5b3;
+      --border: #2b3440; --accent: #60a5fa; --accent-fg: #0b1220; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24;
+      --code: #e6e9ee; --code-bg: #0b0f14;
+      --benign: #34d399; --malicious: #f87171;
+      --arrow: #94a3b8; --arrow-static: #fbbf24; --arrow-cycle: #f87171;
+      --shape: #334155; --shape-stroke: #cbd5e1; --current: #f59e0b; --visited: #1d4ed8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; }
+  header { padding: 28px 20px 12px; max-width: 1100px; margin: 0 auto; }
+  header h1 { margin: 0; font-size: 1.9rem; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 20px 40px; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 16px 20px 32px; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); }
+  a { color: var(--accent); }
+
+  /* Tabs */
+  [role=tablist] { display: flex; gap: 6px; border-bottom: 2px solid var(--border); margin: 16px 0 20px; flex-wrap: wrap; }
+  [role=tab] { background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 10px 14px; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: 6px 6px 0 0; }
+  [role=tab][aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
+  [role=tab]:hover { background: var(--panel-2); }
+  [role=tabpanel][hidden] { display: none; }
+
+  /* Cards and layout */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+  .card h2 { margin: 0 0 10px; font-size: 1.15rem; }
+  .card h3 { margin: 14px 0 6px; font-size: 1rem; }
+  .card p { margin: 8px 0; }
+  .span2 { grid-column: 1 / -1; }
+  pre { background: var(--code-bg); color: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; font-size: 0.8rem; line-height: 1.45; margin: 8px 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .ic { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+
+  /* Controls */
+  label { display: block; font-weight: 600; font-size: 0.92rem; margin-top: 10px; }
+  input[type=text], input[type=password], select { width: 100%; font: inherit; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); margin-top: 4px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .row label { margin: 0; }
+  .grow { flex: 1; min-width: 140px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, select:focus-visible, [role=tab]:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 0.92rem; margin-top: 10px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .check label { margin: 0; }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .stat { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Module 1 */
+  .bar { height: 22px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .bar > div { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s ease; }
+  .log { height: 200px; overflow: auto; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; margin-top: 8px; }
+  .log div { white-space: pre; }
+  .keybox { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; min-height: 36px; }
+  .keybox span { width: 30px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, monospace; font-size: 1.1rem; background: var(--panel-2); }
+  .keybox span.known { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .keybox span.cur { outline: 3px solid var(--warn); }
+
+  /* Module 2 */
+  canvas { width: 100%; height: 280px; display: block; }
+  .legend { display: flex; gap: 16px; font-size: 0.9rem; margin-top: 6px; flex-wrap: wrap; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+
+  /* Module 3 */
+  svg.diagram { width: 100%; height: auto; display: block; }
+  .shape { fill: var(--shape); stroke: var(--shape-stroke); stroke-width: 2; transition: fill 0.2s; }
+  .shape.static { stroke: var(--arrow-static); stroke-width: 3; }
+  .shape.visited { fill: var(--visited); }
+  .shape.current { fill: var(--current); }
+  .nlabel { font-size: 12px; fill: var(--text); text-anchor: middle; }
+  .nsub { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+  .seq { font-family: ui-monospace, monospace; font-size: 0.9rem; margin-top: 8px; word-break: break-word; }
+  .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+  .slots label { margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AC &amp; Side-Channel Lab</h1>
+  <p>Interactive simulations of a timing oracle, catastrophic regex backtracking, and a shared-pointer linked-list bug (SE/CprE 4210).</p>
+</header>
+
+<main>
+  <div role="tablist" aria-label="Modules">
+    <button role="tab" id="tab-timing" aria-selected="true" aria-controls="panel-timing">1. Timing side channel</button>
+    <button role="tab" id="tab-redos" aria-selected="false" aria-controls="panel-redos" tabindex="-1">2. ReDoS backtracking</button>
+    <button role="tab" id="tab-list" aria-selected="false" aria-controls="panel-list" tabindex="-1">3. AC bug: looping list</button>
+  </div>
+
+  <!-- ===================== Module 1: timing side channel ===================== -->
+  <section id="panel-timing" role="tabpanel" aria-labelledby="tab-timing">
+    <div class="grid">
+      <div class="card">
+        <h2>The vulnerable checker</h2>
+        <p class="muted">Simulated C. A wrong-length guess is rejected instantly. A right-length guess sleeps one second per mismatched character, which leaks the Hamming distance to the secret.</p>
+<pre><code>int check_password(const char *guess, const char *secret) {
+    if (strlen(guess) != strlen(secret))
+        return 0;                       /* instant reject */
+    int wrong = 0;
+    for (size_t i = 0; i &lt; strlen(secret); i++)
+        if (guess[i] != secret[i]) wrong++;
+    sleep(wrong);                       /* 1 s per mismatch */
+    return wrong == 0;
+}</code></pre>
+        <label for="t-secret">Secret (what the server knows)</label>
+        <div class="row">
+          <input id="t-secret" class="grow" type="password" value="password123" autocomplete="off" spellcheck="false">
+          <button id="t-show" type="button" aria-pressed="false">Show</button>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="t-fixed">
+          <label for="t-fixed">Fixed (constant-time) version</label>
+        </div>
+        <label for="t-guess">Guess (what the attacker sends)</label>
+        <div class="row">
+          <input id="t-guess" class="grow" type="text" value="password000" autocomplete="off" spellcheck="false">
+          <button id="t-check" type="button" class="primary">Check</button>
+        </div>
+        <h3>Simulated response time</h3>
+        <div class="bar" aria-hidden="true"><div id="t-bar"></div></div>
+        <div class="row">
+          <span id="t-time" class="stat">0 s</span>
+          <output id="t-out" aria-live="polite" for="t-guess"></output>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Auto-crack</h2>
+        <p class="muted">Phase 1 probes lengths 1 to 24: only the right length sleeps. Phase 2 walks each position and tries candidates until the sleep drops by one, which reveals that character.</p>
+        <label for="t-speed">Animation delay per query: <span id="t-speed-val">40</span> ms</label>
+        <input id="t-speed" type="range" min="0" max="300" step="5" value="40">
+        <div class="row">
+          <button id="t-crack" type="button" class="primary">Auto-crack</button>
+          <button id="t-stop" type="button" disabled>Stop</button>
+          <button id="t-clear" type="button">Clear log</button>
+        </div>
+        <div class="row">
+          <div>Queries: <span id="t-queries" class="stat">0</span></div>
+          <div>Current sleep: <span id="t-dist" class="stat">?</span> s</div>
+        </div>
+        <div id="t-phase" class="muted" aria-live="polite">Idle.</div>
+        <div id="t-key" class="keybox" aria-label="Partial key"></div>
+        <div id="t-result" aria-live="polite" style="margin-top:8px"></div>
+        <h3>Attempt log</h3>
+        <div id="t-log" class="log" role="log"></div>
+      </div>
+
+      <div class="card span2">
+        <h2>Why it breaks, and the fix</h2>
+        <p>The checker leaks two things through time alone. The early <span class="ic">return 0</span> on a length mismatch tells the attacker when the length is right (the only length that sleeps), and the <span class="ic">sleep(wrong)</span> turns the response time into a Hamming-distance oracle: it says how many characters are wrong, not just that something is wrong. With that oracle each position can be solved independently. Brute force over an alphabet of 62 symbols would cost about 62<sup>11</sup> guesses for an 11-character secret; the oracle brings it down to roughly 24 + 11 &times; 62 guesses, and the attacker never needs to see the secret, only the clock.</p>
+        <p>The fix is to make every wrong guess look the same from the outside. A constant-time comparison always walks the full buffer, folds every byte difference into one accumulator with XOR and OR instead of branching or counting, and never sleeps or returns early based on how close the guess was. Comparing fixed-length hashes rather than the raw strings also removes the length leak. Switch on <strong>Fixed (constant-time) version</strong> above and run Auto-crack again: every probe returns an identical, instant "Access denied", so the attacker has no signal to climb.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Module 2: ReDoS ===================== -->
+  <section id="panel-redos" role="tabpanel" aria-labelledby="tab-redos" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2>Pattern and input</h2>
+        <p class="muted">The matcher is a tiny backtracking engine written in this page (not the browser's RegExp), so every recursive call can be counted. Patterns are matched against the whole input.</p>
+        <label for="r-pattern">Pattern</label>
+        <select id="r-pattern">
+          <option value="email">([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)*</option>
+          <option value="aplus">(a+)+$</option>
+        </select>
+        <label for="r-len">Input length: <span id="r-len-val">10</span> <span id="r-unit"></span></label>
+        <input id="r-len" type="range" min="5" max="40" value="10">
+        <label for="r-benign">Benign input (greedy first parse succeeds)</label>
+        <input id="r-benign" type="text" spellcheck="false">
+        <label for="r-mal">Malicious input (same text plus one character that forces failure)</label>
+        <input id="r-mal" type="text" spellcheck="false">
+        <div class="row">
+          <button id="r-run-benign" type="button" class="primary">Match benign</button>
+          <button id="r-run-mal" type="button" class="primary">Match malicious</button>
+          <button id="r-sweep" type="button">Sweep 5 to N</button>
+          <button id="r-clear" type="button">Clear chart</button>
+        </div>
+        <div id="r-out" aria-live="polite" style="margin-top:10px">No run yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>Matcher steps vs. input length</h2>
+        <canvas id="r-chart" role="img" aria-label="Line chart of matcher steps (log scale) versus input length for benign and malicious inputs"></canvas>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--benign)"></span>benign</span>
+          <span><span class="swatch" style="background:var(--malicious)"></span>malicious</span>
+          <span><span class="swatch" style="background:none;border:2px dashed var(--muted)"></span>step cap (5,000,000)</span>
+        </div>
+        <p class="muted">Each run adds a point. Runs that hit the cap are drawn hollow on the cap line; the sweep stops computing once the cap is reached and marks longer inputs as capped.</p>
+      </div>
+
+      <div class="card span2">
+        <h2>Why the pattern explodes</h2>
+        <p>The email group ends with the class <span class="ic">[a-zA-Z0-9-.]+</span> and the next copy of the group starts with <span class="ic">[a-zA-Z0-9_.+-]+</span>. Those two classes overlap (letters, digits, dash and dot are in both), so where one block's tail runs straight into the next block's head the engine has several valid ways to decide where the tail stops and the head begins. That ambiguity is a constant number of choices per boundary. The <span class="ic">*</span> wrapped around the group is what multiplies them: with n blocks there are n - 1 boundaries, each with k independent splits, so there are about k<sup>n-1</sup> distinct parses of the same text. On the benign input the greedy first parse succeeds and the alternatives are never visited. Add one trailing character that cannot match and the full match fails at the very end, so a backtracking engine tries every one of those k<sup>n-1</sup> parses before giving up. <span class="ic">(a+)+$</span> is the same shape stripped to the bone: nested repetition over one letter means a run of n a's can be split into inner runs in 2<sup>n-1</sup> ways, and the trailing <span class="ic">!</span> rejects every one of them. The mitigations follow directly: remove the overlap (make the classes disjoint or add a separator), avoid nested quantifiers, bound input length, or use a linear-time engine such as RE2 that never backtracks.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Module 3: shared static pointer ===================== -->
+  <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2>Build the list</h2>
+        <p class="muted">Simulated Java. Every shape stores its own <span class="ic">next</span>, except Rectangle, whose <span class="ic">next</span> is <strong>static</strong> and therefore shared by every Rectangle in the program.</p>
+<pre><code>class Rectangle extends Shape {
+    static Shape next;                  // one field for ALL rectangles
+    void setNext(Shape n) { next = n; }
+    Shape getNext()       { return next; }
+}
+// build(): for (int i = 0; i &lt; 5; i++) nodes[i].setNext(nodes[i + 1]);
+// play():  walk from nodes[0] until getNext() == null;
+//          a 7th visit throws TimeLimitExceeded</code></pre>
+        <div class="slots" id="l-slots"></div>
+        <div class="row">
+          <button id="l-random" type="button">Randomize</button>
+          <button id="l-run" type="button" class="primary">Run traversal</button>
+          <button id="l-rounds" type="button">Run 100 rounds</button>
+        </div>
+        <div id="l-rounds-out" aria-live="polite" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Real pointers after build()</h2>
+        <svg id="l-svg" class="diagram" viewBox="0 0 760 240" aria-label="Diagram of the six list nodes and their next pointers"></svg>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--arrow)"></span>instance next</span>
+          <span><span class="swatch" style="background:var(--arrow-static)"></span>shared static next</span>
+          <span><span class="swatch" style="background:var(--arrow-cycle)"></span>pointer that closes a cycle</span>
+        </div>
+        <div id="l-status" aria-live="polite" style="margin-top:8px">Pick shapes, then run the traversal.</div>
+        <div id="l-seq" class="seq"></div>
+      </div>
+
+      <div class="card span2">
+        <h2>Why one Rectangle is harmless and two can loop</h2>
+        <p><span class="ic">build()</span> calls <span class="ic">setNext</span> on slots 1 through 5 in order; slot 6 has no successor, so its <span class="ic">next</span> is never written. For a Rectangle, <span class="ic">setNext</span> writes the single static field, so the last Rectangle among slots 1 to 5 wins and every Rectangle afterwards answers <span class="ic">getNext()</span> with that same node. With exactly one Rectangle the one write is the right one (or, in slot 6, no write happens and <span class="ic">next</span> stays null), so the list is intact and traversal is O(n). Put a Rectangle in slot 6 and another one in some earlier slot j, and slot 6 now reports node j + 1, which is behind it: the walk goes j, j + 1, ..., 6, j + 1, ... and never reaches null. That is a guaranteed cycle regardless of the other shapes. Two Rectangles that are both before slot 6 do not loop, but the earlier one points at the later one's successor, so the walk silently skips nodes. Either way, shared mutable state has turned a linear walk into something that depends on what happened to be built last. The fix is to make <span class="ic">next</span> an instance field, or better, keep the links inside the list and out of the elements. This page resets the static field before each build so rounds stay independent; in a real JVM it would also carry stale values from the previous round.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Teaching simulation for SE/CprE 4210. No real C, Java, or regular-expression engine code runs here: every sleep, step count, and pointer is modeled in the JavaScript inside this single file.
+</footer>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   Shared helpers
+   ===================================================================== */
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => n.toLocaleString('en-US');
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/* =====================================================================
+   Tab navigation (ARIA tabs, arrow keys move between tabs)
+   ===================================================================== */
+const tabs = Array.from(document.querySelectorAll('[role=tab]'));
+function selectTab(tab, focus) {
+  tabs.forEach((t) => {
+    const on = t === tab;
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute('aria-controls')).hidden = !on;
+  });
+  if (focus) tab.focus();
+  if (tab.id === 'tab-redos') drawChart(); // canvas needs a visible size to draw
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => selectTab(t, true));
+  t.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') selectTab(tabs[(i + 1) % tabs.length], true);
+    else if (e.key === 'ArrowLeft') selectTab(tabs[(i - 1 + tabs.length) % tabs.length], true);
+  });
+});
+
+/* =====================================================================
+   Module 1: timing side channel
+   ===================================================================== */
+const T = { running: false, queries: 0 };
+const CHARSET = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ _-!@#$%^&*.';
+const MAX_LEN = 24;
+
+// The simulated server. Returns how long the server would sleep and what it says.
+function timingCheck(guess, secret, fixed) {
+  if (fixed) {
+    // Constant-time: always touch every byte, fold differences into one word, never sleep,
+    // never return early. Every wrong guess produces the exact same observable behaviour.
+    let diff = guess.length ^ secret.length;
+    const n = Math.max(guess.length, secret.length);
+    for (let i = 0; i < n; i++) diff |= (guess.charCodeAt(i) || 0) ^ (secret.charCodeAt(i) || 0);
+    return { ok: diff === 0, sleep: 0, msg: diff === 0 ? 'Access granted' : 'Access denied' };
+  }
+  if (guess.length !== secret.length) {
+    return { ok: false, sleep: 0, msg: 'Access denied (rejected instantly: wrong length)' };
+  }
+  let wrong = 0;
+  for (let i = 0; i < secret.length; i++) if (guess[i] !== secret[i]) wrong++;
+  if (wrong === 0) return { ok: true, sleep: 0, msg: 'Access granted' };
+  return { ok: false, sleep: wrong, msg: `Sleeping for ${wrong} second${wrong === 1 ? '' : 's'}... Access denied` };
+}
+
+// Update the response bar, the time readout and the text output for one query.
+function showResponse(guess, r, secretLen) {
+  const pct = secretLen ? Math.min(100, (r.sleep / secretLen) * 100) : 0;
+  $('t-bar').style.width = pct + '%';
+  $('t-time').textContent = r.sleep + ' s';
+  const out = $('t-out');
+  out.textContent = r.msg;
+  out.className = r.ok ? 'ok' : (r.sleep ? 'warn' : 'bad');
+}
+
+function logLine(text, cls) {
+  const log = $('t-log');
+  const div = document.createElement('div');
+  div.textContent = text;
+  if (cls) div.className = cls;
+  log.appendChild(div);
+  while (log.childElementCount > 500) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderKey(key, known, cur) {
+  $('t-key').innerHTML = key.map((c, i) =>
+    `<span class="${known[i] ? 'known' : ''}${i === cur ? ' cur' : ''}">${known[i] ? esc(c) : '?'}</span>`).join('');
+}
+
+// Manual check button.
+$('t-check').addEventListener('click', () => {
+  const secret = $('t-secret').value;
+  const guess = $('t-guess').value;
+  const r = timingCheck(guess, secret, $('t-fixed').checked);
+  showResponse(guess, r, secret.length);
+  logLine(`[manual] "${guess}" -> ${r.msg}`, r.ok ? 'ok' : '');
+});
+$('t-guess').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('t-check').click(); });
+
+// Show / hide the secret.
+$('t-show').addEventListener('click', () => {
+  const inp = $('t-secret');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  $('t-show').textContent = show ? 'Hide' : 'Show';
+  $('t-show').setAttribute('aria-pressed', String(show));
+});
+
+$('t-speed').addEventListener('input', () => { $('t-speed-val').textContent = $('t-speed').value; });
+$('t-clear').addEventListener('click', () => { $('t-log').innerHTML = ''; });
+$('t-stop').addEventListener('click', () => { T.running = false; });
+
+function setCrackState(running) {
+  T.running = running;
+  $('t-crack').disabled = running;
+  $('t-stop').disabled = !running;
+}
+
+// The attack. Everything the attacker learns comes from r.sleep and r.ok, never from the secret.
+async function autoCrack() {
+  const secret = $('t-secret').value;
+  const fixed = $('t-fixed').checked;
+  if (!secret.length) { $('t-result').innerHTML = '<span class="bad">Set a non-empty secret first.</span>'; return; }
+  setCrackState(true);
+  T.queries = 0;
+  $('t-queries').textContent = '0';
+  $('t-dist').textContent = '?';
+  $('t-result').textContent = '';
+  $('t-key').innerHTML = '';
+  logLine(`== auto-crack started (${fixed ? 'constant-time checker' : 'vulnerable checker'}) ==`);
+
+  // One query against the server, animated.
+  const query = async (guess, note) => {
+    T.queries++;
+    const r = timingCheck(guess, secret, fixed);
+    showResponse(guess, r, secret.length);
+    $('t-queries').textContent = fmt(T.queries);
+    logLine(`#${String(T.queries).padStart(3)} ${note.padEnd(12)} "${guess}" -> ${r.msg}`, r.ok ? 'ok' : '');
+    await sleep(Number($('t-speed').value));
+    return r;
+  };
+  const finish = (html) => { $('t-result').innerHTML = html; setCrackState(false); };
+
+  // Phase 1: find the length. Only a right-length guess reaches the sleep.
+  $('t-phase').textContent = 'Phase 1: probing lengths 1 to ' + MAX_LEN + ' (looking for the one that sleeps).';
+  let len = -1, dist = 0;
+  for (let L = 1; L <= MAX_LEN && T.running; L++) {
+    const r = await query('a'.repeat(L), `len=${L}`);
+    if (r.ok) return finish(`<span class="ok">Recovered key: ${esc('a'.repeat(L))} in ${T.queries} queries (the filler happened to be the secret).</span>`);
+    if (r.sleep > 0) { len = L; dist = r.sleep; break; }
+  }
+  if (!T.running) return finish('<span class="warn">Stopped.</span>');
+  if (len < 0) {
+    $('t-phase').textContent = 'Phase 1 failed.';
+    return finish('<span class="bad">Attack failed: no length produced a delay. Every wrong guess looked identical, so there is no oracle to follow.</span>');
+  }
+  $('t-dist').textContent = dist;
+  logLine(`-- length is ${len}: it is the only length that slept (${dist} mismatches) --`, 'warn');
+
+  // Phase 2: fix one position at a time. The sleep count is the number of wrong positions.
+  const key = Array(len).fill('a');
+  const known = Array(len).fill(false);
+  for (let i = 0; i < len && T.running; i++) {
+    $('t-phase').textContent = `Phase 2: position ${i + 1} of ${len}. Sleep is ${dist} s; a candidate that makes it ${dist - 1} s is correct.`;
+    renderKey(key, known, i);
+    let found = false;
+    for (const c of CHARSET) {
+      if (c === key[i]) continue;           // the placeholder is already there
+      if (!T.running) break;
+      const trial = key.slice(); trial[i] = c;
+      const r = await query(trial.join(''), `pos=${i + 1} '${c}'`);
+      if (r.ok) {                            // last mismatch fixed: the server let us in
+        key[i] = c; known.fill(true); renderKey(key, known, -1);
+        $('t-dist').textContent = '0';
+        $('t-phase').textContent = 'Done.';
+        return finish(`<span class="ok">Recovered key: ${esc(key.join(''))} in ${T.queries} queries.</span>`);
+      }
+      if (r.sleep === dist - 1) {            // sleep dropped: c is the right character
+        key[i] = c; dist--; found = true;
+        $('t-dist').textContent = dist;
+        logLine(`-- position ${i + 1} is '${c}': sleep dropped to ${dist} --`, 'warn');
+        break;
+      }
+      if (r.sleep === dist + 1) {            // sleep rose: the placeholder was already right
+        found = true;
+        logLine(`-- position ${i + 1} is '${key[i]}': changing it made the sleep go UP --`, 'warn');
+        break;
+      }
+    }
+    if (!T.running) return finish('<span class="warn">Stopped.</span>');
+    if (!found) {
+      renderKey(key, known, i);
+      return finish(`<span class="bad">Gave up at position ${i + 1}: no candidate changed the delay, so that character is outside the candidate set.</span>`);
+    }
+    known[i] = true;
+    renderKey(key, known, i + 1);
+  }
+  // Only reached if the final position was confirmed via "sleep went up" (secret ends in 'a').
+  const r = await query(key.join(''), 'verify');
+  if (r.ok) return finish(`<span class="ok">Recovered key: ${esc(key.join(''))} in ${T.queries} queries.</span>`);
+  return finish('<span class="bad">Something went wrong: the reconstructed key was rejected.</span>');
+}
+$('t-crack').addEventListener('click', () => { autoCrack(); });
+
+/* =====================================================================
+   Module 2: ReDoS with a hand-written backtracking matcher
+   ===================================================================== */
+const STEP_CAP = 5000000;
+class StepCapReached extends Error {}
+let steps = 0;
+
+// Pattern AST: cls = one character from a class, seq = concatenation, rep = greedy repetition.
+const cls = (pred, label) => ({ t: 'cls', pred, label });
+const lit = (ch) => cls((c) => c === ch, ch);
+const seq = (...nodes) => ({ t: 'seq', nodes });
+const rep = (node, min) => ({ t: 'rep', node, min });
+
+// Continuation-passing backtracking matcher. m(node, s, pos, k) tries to match node at pos and
+// then calls k(newPos); returning false makes the caller try its next alternative. Every call
+// is one "step"; past STEP_CAP we throw so the page can never freeze.
+function m(node, s, pos, k) {
+  if (++steps > STEP_CAP) throw new StepCapReached();
+  switch (node.t) {
+    case 'cls': return pos < s.length && node.pred(s[pos]) ? k(pos + 1) : false;
+    case 'seq': return seqFrom(node.nodes, 0, s, pos, k);
+    case 'rep': return repFrom(node, 0, s, pos, k);
+  }
+  return false;
+}
+function seqFrom(nodes, i, s, pos, k) {
+  if (i === nodes.length) return k(pos);
+  return m(nodes[i], s, pos, (p) => seqFrom(nodes, i + 1, s, p, k));
+}
+function repFrom(node, count, s, pos, k) {
+  // Greedy: try one more copy first (refusing empty copies, which would loop forever),
+  // and only when that whole branch fails fall back to stopping here.
+  if (m(node.node, s, pos, (p) => (p === pos ? false : repFrom(node, count + 1, s, p, k)))) return true;
+  return count >= node.min ? k(pos) : false;
+}
+function fullMatch(ast, s) {
+  steps = 0;
+  const t0 = performance.now();
+  try {
+    const ok = m(ast, s, 0, (p) => p === s.length);
+    return { ok, steps, capped: false, ms: performance.now() - t0 };
+  } catch (e) {
+    if (e instanceof StepCapReached) return { ok: null, steps: STEP_CAP, capped: true, ms: performance.now() - t0 };
+    throw e;
+  }
+}
+
+// Character classes written by hand so the browser's RegExp is not involved at all.
+const isAlnum = (c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+const emailHead = cls((c) => isAlnum(c) || '_.+-'.includes(c), '[a-zA-Z0-9_.+-]');
+const emailDomain = cls((c) => isAlnum(c) || c === '-', '[a-zA-Z0-9-]');
+const emailTail = cls((c) => isAlnum(c) || c === '-' || c === '.', '[a-zA-Z0-9-.]');
+
+const PATTERNS = {
+  email: {
+    label: '([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+)*',
+    ast: rep(seq(rep(emailHead, 1), lit('@'), rep(emailDomain, 1), lit('.'), rep(emailTail, 1)), 0),
+    unit: 'blocks of "a@b.cc"',
+    benign: (n) => 'a@b.cc'.repeat(n),
+    malicious: (n) => 'a@b.cc'.repeat(n) + '!',
+  },
+  aplus: {
+    label: '(a+)+$',
+    ast: rep(rep(lit('a'), 1), 1),
+    unit: "copies of 'a'",
+    benign: (n) => 'a'.repeat(n),
+    malicious: (n) => 'a'.repeat(n) + '!',
+  },
+};
+const LEN_MIN = 5, LEN_MAX = 40;
+// chartData[patternKey][kind] = Map(length -> result)
+const chartData = { email: { benign: new Map(), malicious: new Map() }, aplus: { benign: new Map(), malicious: new Map() } };
+let sweeping = false;
+
+const curPattern = () => PATTERNS[$('r-pattern').value];
+function regenInputs() {
+  const n = Number($('r-len').value);
+  const p = curPattern();
+  $('r-len-val').textContent = n;
+  $('r-unit').textContent = p.unit;
+  $('r-benign').value = p.benign(n);
+  $('r-mal').value = p.malicious(n);
+}
+$('r-len').addEventListener('input', regenInputs);
+$('r-pattern').addEventListener('change', () => { regenInputs(); drawChart(); });
+
+function describe(kind, input, r) {
+  const shown = input.length > 60 ? input.slice(0, 57) + '...' : input;
+  if (r.capped) {
+    return `<span class="bad">Step cap reached: gave up after ${fmt(r.steps)} steps (${r.ms.toFixed(0)} ms).</span> ` +
+      `A real backtracking engine would still be running. Input: <code>${esc(shown)}</code>`;
+  }
+  return `<span class="${r.ok ? 'ok' : 'warn'}">${r.ok ? 'Matched' : 'No match'}</span> after <strong>${fmt(r.steps)}</strong> steps ` +
+    `(${r.ms.toFixed(2)} ms) on the ${kind} input <code>${esc(shown)}</code>`;
+}
+
+// Run the matcher on one of the two text boxes and record the point for the chart.
+function runOne(kind) {
+  const key = $('r-pattern').value;
+  const input = (kind === 'benign' ? $('r-benign') : $('r-mal')).value;
+  const n = Number($('r-len').value);
+  $('r-out').innerHTML = 'Running...';
+  setTimeout(() => {
+    const r = fullMatch(PATTERNS[key].ast, input);
+    $('r-out').innerHTML = describe(kind, input, r);
+    chartData[key][kind].set(n, r);
+    drawChart();
+  }, 10);
+}
+$('r-run-benign').addEventListener('click', () => runOne('benign'));
+$('r-run-mal').addEventListener('click', () => runOne('malicious'));
+$('r-clear').addEventListener('click', () => {
+  const key = $('r-pattern').value;
+  chartData[key].benign.clear(); chartData[key].malicious.clear();
+  drawChart();
+});
+
+// Sweep lengths 5..N for both inputs, redrawing after each so the curve grows live.
+$('r-sweep').addEventListener('click', async () => {
+  if (sweeping) return;
+  sweeping = true;
+  $('r-sweep').disabled = true;
+  const key = $('r-pattern').value;
+  const p = PATTERNS[key];
+  const top = Number($('r-len').value);
+  let capped = false;
+  for (let n = LEN_MIN; n <= top; n++) {
+    chartData[key].benign.set(n, fullMatch(p.ast, p.benign(n)));
+    if (capped) {
+      // Longer inputs can only be worse; mark them without burning more time.
+      chartData[key].malicious.set(n, { ok: null, steps: STEP_CAP, capped: true, assumed: true, ms: 0 });
+    } else {
+      const r = fullMatch(p.ast, p.malicious(n));
+      chartData[key].malicious.set(n, r);
+      if (r.capped) capped = true;
+    }
+    $('r-out').innerHTML = `Sweep: length ${n} of ${top}` + (capped ? ' (cap reached, remaining lengths marked as capped)' : '');
+    drawChart();
+    await sleep(20);
+  }
+  $('r-out').innerHTML = `Sweep finished for lengths ${LEN_MIN} to ${top}.`;
+  sweeping = false;
+  $('r-sweep').disabled = false;
+});
+
+// Canvas line chart, log10 y axis from 1 to 10^7.
+function drawChart() {
+  const c = $('r-chart');
+  const rect = c.getBoundingClientRect();
+  if (rect.width === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(rect.width * dpr);
+  c.height = Math.round(rect.height * dpr);
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  const pad = { l: 50, r: 14, t: 12, b: 36 };
+  const X = (n) => pad.l + ((n - LEN_MIN) / (LEN_MAX - LEN_MIN)) * (W - pad.l - pad.r);
+  const Y = (s) => H - pad.b - (Math.log10(Math.max(1, s)) / 7) * (H - pad.t - pad.b);
+  const muted = cssVar('--muted'), border = cssVar('--border'), text = cssVar('--text');
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '11px system-ui, sans-serif';
+
+  // Horizontal grid: one line per decade.
+  const yLabels = ['1', '10', '100', '1k', '10k', '100k', '1M', '10M'];
+  for (let k = 0; k <= 7; k++) {
+    const y = Y(Math.pow(10, k));
+    ctx.strokeStyle = border; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(yLabels[k], pad.l - 6, y);
+  }
+  // X axis ticks.
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let n = LEN_MIN; n <= LEN_MAX; n += 5) {
+    ctx.fillStyle = muted;
+    ctx.fillText(String(n), X(n), H - pad.b + 5);
+  }
+  ctx.fillStyle = text;
+  ctx.fillText('input length (units)', (pad.l + W - pad.r) / 2, H - 14);
+  ctx.save(); ctx.translate(12, (pad.t + H - pad.b) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('matcher steps', 0, 0); ctx.restore();
+
+  // Step cap line.
+  ctx.setLineDash([6, 4]); ctx.strokeStyle = muted; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l, Y(STEP_CAP)); ctx.lineTo(W - pad.r, Y(STEP_CAP)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Series.
+  const data = chartData[$('r-pattern').value];
+  for (const [kind, color] of [['benign', cssVar('--benign')], ['malicious', cssVar('--malicious')]]) {
+    const pts = Array.from(data[kind].entries()).sort((a, b) => a[0] - b[0]);
+    if (!pts.length) continue;
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach(([n, r], i) => { const x = X(n), y = Y(r.steps); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    for (const [n, r] of pts) {
+      ctx.beginPath(); ctx.arc(X(n), Y(r.steps), 4, 0, Math.PI * 2);
+      if (r.capped) { ctx.fillStyle = cssVar('--panel'); ctx.fill(); ctx.lineWidth = 2; ctx.stroke(); }
+      else { ctx.fillStyle = color; ctx.fill(); }
+    }
+  }
+}
+window.addEventListener('resize', drawChart);
+regenInputs();
+
+/* =====================================================================
+   Module 3: shared static pointer in a linked list
+   ===================================================================== */
+const SHAPES = ['Circle', 'Hexagon', 'Oval', 'Rectangle', 'Square', 'Triangle'];
+const L = { nodes: [], running: false };
+
+// Simulated class state: Rectangle.next is one field shared by every Rectangle instance.
+const RectangleClass = { next: null };
+
+function makeNode(shape, slot) {
+  const node = { shape, slot, isStatic: shape === 'Rectangle' };
+  if (node.isStatic) {
+    node.setNext = (n) => { RectangleClass.next = n; };   // writes the shared field
+    node.getNext = () => RectangleClass.next;             // reads whatever was written last
+  } else {
+    let next = null;                                      // ordinary per-instance field
+    node.setNext = (n) => { next = n; };
+    node.getNext = () => next;
+  }
+  return node;
+}
+
+// build(): link slot i to slot i+1 for i = 0..4. Slot 5 is never written.
+function build(shapes) {
+  RectangleClass.next = null;   // fresh class state, as if the class was just loaded
+  const nodes = shapes.map(makeNode);
+  for (let i = 0; i < nodes.length - 1; i++) nodes[i].setNext(nodes[i + 1]);
+  return nodes;
+}
+
+// play(): follow getNext() from slot 0; a 7th visit means the list loops.
+function traverse(nodes, limit) {
+  const visits = [];
+  let cur = nodes[0];
+  while (cur) {
+    visits.push(cur.slot);
+    if (visits.length > limit) return { visits, error: 'TimeLimitExceeded' };
+    cur = cur.getNext();
+  }
+  return { visits, error: null };
+}
+
+const slotShapes = () => Array.from({ length: 6 }, (_, i) => $('l-slot-' + i).value);
+const randomShape = () => SHAPES[Math.floor(Math.random() * SHAPES.length)];
+
+// Six dropdowns.
+$('l-slots').innerHTML = Array.from({ length: 6 }, (_, i) =>
+  `<label for="l-slot-${i}">Slot ${i + 1}<select id="l-slot-${i}">${SHAPES.map((s) => `<option${s === SHAPES[i] ? ' selected' : ''}>${s}</option>`).join('')}</select></label>`).join('');
+for (let i = 0; i < 6; i++) $('l-slot-' + i).addEventListener('change', rebuild);
+
+// SVG glyph for each shape, centred on (cx, cy).
+function glyph(shape, cx, cy, extra, id) {
+  const a = `id="${id}" class="shape${extra}"`;
+  switch (shape) {
+    case 'Circle': return `<circle ${a} cx="${cx}" cy="${cy}" r="23"/>`;
+    case 'Hexagon': { const pts = []; for (let k = 0; k < 6; k++) { const t = Math.PI / 3 * k; pts.push(`${(cx + 25 * Math.cos(t)).toFixed(1)},${(cy + 25 * Math.sin(t)).toFixed(1)}`); } return `<polygon ${a} points="${pts.join(' ')}"/>`; }
+    case 'Oval': return `<ellipse ${a} cx="${cx}" cy="${cy}" rx="30" ry="18"/>`;
+    case 'Rectangle': return `<rect ${a} x="${cx - 31}" y="${cy - 17}" width="62" height="34" rx="3"/>`;
+    case 'Square': return `<rect ${a} x="${cx - 21}" y="${cy - 21}" width="42" height="42" rx="3"/>`;
+    case 'Triangle': return `<polygon ${a} points="${cx},${cy - 25} ${cx - 27},${cy + 20} ${cx + 27},${cy + 20}"/>`;
+  }
+  return '';
+}
+
+const NX = (i) => 65 + i * 126;   // x centre of slot i
+const NY = 92;                     // y centre of every node (labels sit above it)
+const R = 34;                      // clearance around a node for arrow endpoints
+
+// Draw nodes and the real next pointers after build().
+function renderDiagram(nodes) {
+  const defs = ['arrow', 'arrow-static', 'arrow-cycle'].map((v) =>
+    `<marker id="mk-${v}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--${v})"/></marker>`).join('');
+  let edges = '', shapes = '';
+  nodes.forEach((node, i) => {
+    const cx = NX(i);
+    shapes += glyph(node.shape, cx, NY, node.isStatic ? ' static' : '', `l-node-${i}`);
+    shapes += `<text class="nlabel" x="${cx}" y="${NY - 50}">${node.shape}</text><text class="nsub" x="${cx}" y="${NY - 36}">slot ${i + 1}${node.isStatic ? ', static next' : ''}</text>`;
+    const nxt = node.getNext();
+    if (!nxt) {
+      // Null pointer: a short stub ending in a bar.
+      const col = node.isStatic ? 'var(--arrow-static)' : 'var(--arrow)';
+      edges += `<line x1="${cx + R}" y1="${NY}" x2="${cx + R + 18}" y2="${NY}" stroke="${col}" stroke-width="2"/>` +
+        `<line x1="${cx + R + 18}" y1="${NY - 9}" x2="${cx + R + 18}" y2="${NY + 9}" stroke="${col}" stroke-width="3"/>` +
+        `<text class="nsub" x="${cx + R + 28}" y="${NY + 4}" style="text-anchor:start">null</text>`;
+      return;
+    }
+    const j = nxt.slot;
+    const cycle = j <= i;
+    const v = cycle ? 'arrow-cycle' : (node.isStatic ? 'arrow-static' : 'arrow');
+    const stroke = `stroke="var(--${v})" stroke-width="2.5" fill="none" marker-end="url(#mk-${v})"`;
+    if (j === i + 1) {
+      edges += `<line x1="${cx + R}" y1="${NY}" x2="${NX(j) - R}" y2="${NY}" ${stroke}/>`;
+    } else if (j === i) {
+      // Self loop: the node's next is itself.
+      edges += `<path d="M ${cx - 12} ${NY + R - 6} C ${cx - 48} ${NY + R + 60}, ${cx + 48} ${NY + R + 60}, ${cx + 12} ${NY + R - 4}" ${stroke}/>`;
+    } else if (cycle) {
+      // Backward pointer: deep loop underneath the row.
+      const depth = 60 + 8 * (i - j);
+      edges += `<path d="M ${cx} ${NY + R} Q ${(cx + NX(j)) / 2} ${NY + R + depth * 2} ${NX(j)} ${NY + R + 2}" ${stroke}/>`;
+    } else {
+      // Forward skip: shallow arc underneath the row.
+      const depth = 22 + 6 * (j - i);
+      edges += `<path d="M ${cx} ${NY + R} Q ${(cx + NX(j)) / 2} ${NY + R + depth * 2} ${NX(j)} ${NY + R + 2}" ${stroke}/>`;
+    }
+  });
+  $('l-svg').innerHTML = `<defs>${defs}</defs>${edges}${shapes}`;
+}
+
+function rebuild() {
+  L.nodes = build(slotShapes());
+  renderDiagram(L.nodes);
+  $('l-seq').textContent = '';
+  const res = traverse(L.nodes, 6);
+  $('l-status').innerHTML = res.error
+    ? '<span class="warn">This configuration loops. Run the traversal to see it.</span>'
+    : (res.visits.length < 6 ? `<span class="warn">No cycle, but the walk only reaches ${res.visits.length} of 6 nodes (shared pointer skipped some).</span>` : 'All 6 nodes are reachable in order.');
+}
+
+$('l-random').addEventListener('click', () => {
+  for (let i = 0; i < 6; i++) $('l-slot-' + i).value = randomShape();
+  rebuild();
+});
+
+// Animated walk: highlight each visit, stop on the 7th with TimeLimitExceeded.
+$('l-run').addEventListener('click', async () => {
+  if (L.running) return;
+  L.running = true;
+  $('l-run').disabled = true;
+  rebuild();
+  const nodes = L.nodes;
+  const seqEl = $('l-seq'), status = $('l-status');
+  status.textContent = 'Traversing...';
+  const names = [];
+  let cur = nodes[0], prev = null, visits = 0;
+  while (cur) {
+    visits++;
+    names.push(`${visits}: ${cur.shape} (slot ${cur.slot + 1})`);
+    seqEl.textContent = names.join(' -> ');
+    if (prev) prev.classList.replace('current', 'visited');
+    const el = $('l-node-' + cur.slot);
+    el.classList.add('current');
+    prev = el;
+    await sleep(450);
+    if (visits > 6) {
+      status.innerHTML = `<span class="bad">TimeLimitExceeded: visited ${visits} nodes in a 6-node list. The traversal is in a cycle and would never reach null.</span>`;
+      L.running = false; $('l-run').disabled = false;
+      return;
+    }
+    cur = cur.getNext();
+  }
+  if (prev) prev.classList.replace('current', 'visited');
+  status.innerHTML = visits === 6
+    ? `<span class="ok">Traversal finished: ${visits} visits, reached null. No cycle.</span>`
+    : `<span class="warn">Traversal finished early after ${visits} visits: the shared static pointer skipped the rest of the list.</span>`;
+  L.running = false; $('l-run').disabled = false;
+});
+
+// Monte Carlo: how often does a random 6-shape list hit the loop?
+$('l-rounds').addEventListener('click', () => {
+  let loops = 0, short = 0;
+  const examples = [];
+  for (let r = 0; r < 100; r++) {
+    const shapes = Array.from({ length: 6 }, randomShape);
+    const res = traverse(build(shapes), 6);
+    if (res.error) { loops++; if (examples.length < 3) examples.push(shapes.map((s) => s.slice(0, 3)).join(' ')); }
+    else if (res.visits.length < 6) short++;
+  }
+  const theory = (1 / 6) * (1 - Math.pow(5 / 6, 5)) * 100;
+  $('l-rounds-out').innerHTML = `<strong>${loops}</strong> of 100 rounds threw TimeLimitExceeded (theory: Rectangle in slot 6 and at least one more Rectangle, about ${theory.toFixed(1)}%). ` +
+    `${short} rounds silently skipped nodes.` + (examples.length ? ` Looping examples: <code>${esc(examples.join(' | '))}</code>` : '');
+});
+
+rebuild();
+</script>
+</body>
+</html>
